@@ -1,0 +1,61 @@
+{
+  "name": "brain-dump-to-polished-audio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tray-native Electron utility that turns rough voice notes into polished text and regenerated audio.",
+  "main": "dist/main/main/main.js",
+  "scripts": {
+    "dev": "concurrently \"vite\" \"npm:dev:main\"",
+    "dev:main": "wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "test": "vitest run",
+    "package:mac": "electron-builder --mac --dir",
+    "package:win": "electron-builder --win --dir",
+    "package:linux": "electron-builder --linux --dir",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.4.1",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^36.2.1",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^3.1.2",
+    "wait-on": "^8.0.2"
+  },
+  "build": {
+    "appId": "com.openspec.braindump",
+    "productName": "Brain Dump Polisher",
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "resources"
+    },
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
