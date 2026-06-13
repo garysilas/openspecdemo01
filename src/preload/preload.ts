@@ -1,10 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AppSettings, ProcessSessionRequest, SessionListItem, SessionRecord } from "../shared/types.js";
+import type { AppSettings, ProcessSessionRequest, RecordingStopPayload, SessionListItem, SessionRecord } from "../shared/types.js";
 
 const api = {
   startRecording: (): Promise<{ sessionId: string }> => ipcRenderer.invoke("recording:start"),
-  stopRecording: (): Promise<{ sessionId: string; durationMs: number; rawAudioPath: string }> =>
-    ipcRenderer.invoke("recording:stop"),
+  stopRecording: (payload: RecordingStopPayload): Promise<{ sessionId: string; durationMs: number; rawAudioPath: string }> =>
+    ipcRenderer.invoke("recording:stop", payload),
   processSession: (request: ProcessSessionRequest): Promise<SessionRecord | undefined> =>
     ipcRenderer.invoke("session:process", request),
   listSessions: (): Promise<SessionListItem[]> => ipcRenderer.invoke("session:list"),

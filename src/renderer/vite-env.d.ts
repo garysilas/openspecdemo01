@@ -1,12 +1,12 @@
 /// <reference types="vite/client" />
 
-import type { AppSettings, ProcessSessionRequest, SessionListItem, SessionRecord } from "../shared/types";
+import type { AppSettings, ProcessSessionRequest, RecordingStopPayload, SessionListItem, SessionRecord } from "../shared/types";
 
 declare global {
   interface Window {
     desktopApi: {
       startRecording: () => Promise<{ sessionId: string }>;
-      stopRecording: () => Promise<{ sessionId: string; durationMs: number; rawAudioPath: string }>;
+      stopRecording: (payload: RecordingStopPayload) => Promise<{ sessionId: string; durationMs: number; rawAudioPath: string }>;
       processSession: (request: ProcessSessionRequest) => Promise<SessionRecord | undefined>;
       listSessions: () => Promise<SessionListItem[]>;
       getSessionDetail: (sessionId: string) => Promise<SessionRecord | undefined>;
