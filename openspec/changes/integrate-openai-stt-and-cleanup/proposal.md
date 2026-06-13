@@ -1,4 +1,4 @@
-## Why
+# Why
 
 The app currently relies on mock providers, so transcript quality and cleanup behavior are not representative of production output. Integrating OpenAI-powered speech-to-text and rewrite cleanup now enables real end-to-end quality, validates provider configuration flow, and makes the core workflow actually useful for users.
 
@@ -13,9 +13,11 @@ The app currently relies on mock providers, so transcript quality and cleanup be
 ## Capabilities
 
 ### New Capabilities
+
 - None.
 
 ### Modified Capabilities
+
 - `speech-to-polished-pipeline`: Transcription and cleanup stages change from mock processing to OpenAI API-backed processing with real provider errors and outputs.
 
 ## Impact

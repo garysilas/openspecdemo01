@@ -12,6 +12,8 @@
     "build:main": "tsc -p tsconfig.main.json && tsc -p tsconfig.preload.json",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test": "vitest run",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
+    "rebuild:node": "npm rebuild better-sqlite3",
     "package:mac": "electron-builder --mac --dir",
     "package:win": "electron-builder --win --dir",
     "package:linux": "electron-builder --linux --dir",
@@ -19,6 +21,8 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
+    "dotenv": "^16.6.1",
+    "openai": "^5.8.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zod": "^3.24.1"

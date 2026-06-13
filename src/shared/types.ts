@@ -51,6 +51,7 @@ export interface ProviderConfig {
   llmModel: string;
   ttsVoice: string;
   apiKey?: string;
+  useMocks?: boolean;
 }
 
 export interface AppSettings {
@@ -62,4 +63,10 @@ export interface AppSettings {
 export interface ProcessSessionRequest {
   sessionId: string;
   forceRetryStage?: StageName;
+}
+
+export interface RecordingStopPayload {
+  base64Audio: string;
+  mimeType: string;
+  fileExtension: string;
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { AppSettings, PipelineStage, SessionListItem, SessionRecord, StageName, StageStatus } from "../../shared/types";
 
 type RecorderMode = "idle" | "recording" | "processing";
@@ -33,6 +33,8 @@ export function App(): React.JSX.Element {
   const [settings, setSettings] = useState<AppSettings | undefined>(undefined);
   const [settingsDraft, setSettingsDraft] = useState<AppSettings | undefined>(undefined);
   const [savedMessage, setSavedMessage] = useState<string>("");
+  const recorderRef = useRef<MediaRecorder | undefined>(undefined);
+  const chunksRef = useRef<Blob[]>([]);
 
   async function refreshHistory(): Promise<void> {
     const list = await window.desktopApi.listSessions();
@@ -87,6 +89,17 @@ export function App(): React.JSX.Element {
     try {
       setError("");
       await verifyMicrophoneAccess();
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
+      const nextRecorder = new MediaRecorder(mediaStream, { mimeType });
+      chunksRef.current = [];
+      nextRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+      nextRecorder.start();
+      recorderRef.current = nextRecorder;
       const started = await window.desktopApi.startRecording();
       setSessionId(started.sessionId);
       setMode("recording");
@@ -98,7 +111,10 @@ export function App(): React.JSX.Element {
   async function stopRecording(): Promise<void> {
     try {
       setError("");
-      const stopped = await window.desktopApi.stopRecording();
+      const payload = await finalizeRecordingPayload(recorderRef.current, chunksRef.current);
+      const stopped = await window.desktopApi.stopRecording(payload);
+      recorderRef.current = undefined;
+      chunksRef.current = [];
       setSessionId(stopped.sessionId);
       setMode("processing");
       await window.desktopApi.processSession({ sessionId: stopped.sessionId });
@@ -226,6 +242,22 @@ export function App(): React.JSX.Element {
         {settingsDraft ? (
           <div className="settings-grid">
             <label>
+              OpenAI API Key
+              <input
+                type="password"
+                value={settingsDraft.provider.apiKey ?? ""}
+                onChange={(event) =>
+                  setSettingsDraft({
+                    ...settingsDraft,
+                    provider: {
+                      ...settingsDraft.provider,
+                      apiKey: event.target.value
+                    }
+                  })
+                }
+              />
+            </label>
+            <label>
               Global Hotkey
               <input
                 value={settingsDraft.hotkey}
@@ -236,6 +268,24 @@ export function App(): React.JSX.Element {
                   })
                 }
               />
+            </label>
+            <label>
+              Use Mock Providers
+              <select
+                value={settingsDraft.provider.useMocks === false ? "false" : "true"}
+                onChange={(event) =>
+                  setSettingsDraft({
+                    ...settingsDraft,
+                    provider: {
+                      ...settingsDraft.provider,
+                      useMocks: event.target.value === "true"
+                    }
+                  })
+                }
+              >
+                <option value="false">OpenAI (production-like)</option>
+                <option value="true">Mock providers (offline/dev)</option>
+              </select>
             </label>
             <label>
               Retention Days
@@ -309,6 +359,33 @@ export function App(): React.JSX.Element {
       {sessionId ? <p className="meta">Current session: {sessionId}</p> : null}
     </div>
   );
+}
+
+async function finalizeRecordingPayload(recorder: MediaRecorder | undefined, chunks: Blob[]): Promise<{
+  base64Audio: string;
+  mimeType: string;
+  fileExtension: string;
+}> {
+  if (!recorder) {
+    throw new Error("No active recorder instance found.");
+  }
+  await new Promise<void>((resolve, reject) => {
+    recorder.onerror = () => reject(new Error("Audio recording failed."));
+    recorder.onstop = () => resolve();
+    recorder.stop();
+  });
+  recorder.stream.getTracks().forEach((track) => track.stop());
+  const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+  const arrayBuffer = await blob.arrayBuffer();
+  const uint8 = new Uint8Array(arrayBuffer);
+  let binary = "";
+  for (const b of uint8) {
+    binary += String.fromCharCode(b);
+  }
+  const base64Audio = btoa(binary);
+  const mimeType = blob.type || "audio/webm";
+  const fileExtension = mimeType.includes("wav") ? "wav" : mimeType.includes("mp4") ? "m4a" : "webm";
+  return { base64Audio, mimeType, fileExtension };
 }
 
 async function verifyMicrophoneAccess(): Promise<void> {

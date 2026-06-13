@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+import path from "node:path";
 import electron from "electron";
 import { createRecorderWindow, toggleWindow } from "./window.js";
 import { createTray } from "./tray.js";
@@ -6,13 +8,17 @@ import { openDatabase } from "./storage/database.js";
 import { runMigrations } from "./storage/migrations.js";
 import { schemaSql } from "./storage/schema.js";
 import { SessionRepository } from "./storage/session-repository.js";
-import { MockCleanupProvider, MockSpeechToTextProvider, MockTextToSpeechProvider } from "./domain/mock-providers.js";
+import { createRuntimeProviders } from "./domain/provider-factory.js";
 import { SessionJobService } from "./services/session-job-service.js";
 import { RecordingService } from "./services/recording-service.js";
 import { registerIpc } from "./ipc.js";
-import { loadSettings } from "./settings.js";
+import { formatProviderDebugInfo, loadSettings, resolveProviderConfig, validateProviderConfig } from "./settings.js";
 
 const { app, globalShortcut } = electron;
+
+// Load env vars from project root first, then optional src/.env fallback.
+dotenv.config({ path: path.join(process.cwd(), ".env") });
+dotenv.config({ path: path.join(process.cwd(), "src", ".env") });
 
 let shortcut = "";
 
@@ -28,6 +34,11 @@ function registerGlobalHotkey(accelerator: string, onToggle: () => void): void {
 }
 
 async function bootstrap(): Promise<void> {
+  const settings = loadSettings();
+  const providerConfig = resolveProviderConfig(settings);
+  console.log(`[provider-config] ${formatProviderDebugInfo(providerConfig)}`);
+  validateProviderConfig(providerConfig);
+
   const dbHandle = openDatabase(dbPath());
   runMigrations(dbHandle.db.exec.bind(dbHandle.db), schemaSql);
 
@@ -36,12 +47,13 @@ async function bootstrap(): Promise<void> {
   const window = createRecorderWindow();
   const onToggle = (): void => toggleWindow(window);
   createTray(onToggle);
+  const providers = createRuntimeProviders(providerConfig);
 
   const jobs = new SessionJobService({
     repository,
-    stt: new MockSpeechToTextProvider(),
-    cleanup: new MockCleanupProvider(),
-    tts: new MockTextToSpeechProvider(),
+    stt: providers.stt,
+    cleanup: providers.cleanup,
+    tts: providers.tts,
     emitStatus: (event, payload) => {
       if (!window.isDestroyed()) {
         window.webContents.send(event, payload);
@@ -56,7 +68,7 @@ async function bootstrap(): Promise<void> {
     jobs,
     onHotkeyUpdated: (nextHotkey) => registerGlobalHotkey(nextHotkey, onToggle)
   });
-  registerGlobalHotkey(loadSettings().hotkey, onToggle);
+  registerGlobalHotkey(settings.hotkey, onToggle);
 
   app.on("will-quit", () => {
     globalShortcut.unregisterAll();
