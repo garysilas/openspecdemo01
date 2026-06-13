@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import electron from "electron";
-import type { ProcessSessionRequest } from "../shared/types.js";
+import type { ProcessSessionRequest, RecordingStopPayload } from "../shared/types.js";
 import { RecordingService } from "./services/recording-service.js";
 import { SessionRepository } from "./storage/session-repository.js";
 import { SessionJobService } from "./services/session-job-service.js";
 import type { AppSettings } from "../shared/types.js";
-import { loadSettings, saveSettings } from "./settings.js";
+import { loadSettings, mergeProviderPatch, sanitizeSettingsForRenderer, saveSettings, validateProviderConfig } from "./settings.js";
 
 const { dialog, ipcMain } = electron;
 type BrowserWindow = Electron.BrowserWindow;
@@ -33,15 +33,15 @@ export function registerIpc(deps: IpcDeps): void {
     return started;
   });
 
-  ipcMain.handle("recording:stop", async () => {
-    const stopped = recording.stop();
+  ipcMain.handle("recording:stop", async (_event, payload?: RecordingStopPayload) => {
+    const stopped = payload ? recording.stopWithAudio(payload) : recording.stop();
     repository.createSession({
       id: stopped.sessionId,
       createdAt: new Date().toISOString(),
       status: "recorded",
       durationMs: stopped.durationMs
     });
-    repository.putAudioArtifact(stopped.sessionId, "raw", stopped.rawAudioPath, "wav");
+    repository.putAudioArtifact(stopped.sessionId, "raw", stopped.rawAudioPath, stopped.mimeType);
     repository.updateSessionStatus(stopped.sessionId, "recorded");
     emitToRenderer(window, "session:status", {
       sessionId: stopped.sessionId,
@@ -74,20 +74,20 @@ export function registerIpc(deps: IpcDeps): void {
     return { exported: true, path: result.filePath };
   });
 
-  ipcMain.handle("settings:get", () => loadSettings());
+  ipcMain.handle("settings:get", () => sanitizeSettingsForRenderer(loadSettings()));
   ipcMain.handle("settings:update", (_event, patch: Partial<AppSettings>) => {
     const current = loadSettings();
+    const mergedProvider = mergeProviderPatch(current.provider, patch.provider);
     const next = {
       ...current,
       ...patch,
-      provider: {
-        ...current.provider,
-        ...(patch.provider ?? {})
-      }
+      provider: mergedProvider
     };
     if (patch.hotkey && patch.hotkey !== current.hotkey) {
       onHotkeyUpdated(patch.hotkey);
     }
-    return saveSettings(next);
+    validateProviderConfig(next.provider);
+    const saved = saveSettings(next);
+    return sanitizeSettingsForRenderer(saved);
   });
 }
